@@ -20,6 +20,8 @@ struct Token{
 	int Len;
 };
 
+static char *CurrentInput;
+
 static void error(char *Fmt, ...) {
 	va_list VA;
 	va_start(VA,Fmt);
@@ -29,20 +31,47 @@ static void error(char *Fmt, ...) {
 	exit(1);
 }
 
+
+static void verrorAt(char *Loc, char *Fmt,va_list VA)
+{
+	fprintf(stderr,"%s\n",CurrentInput);
+	int Pos = Loc - CurrentInput;
+	fprintf(stderr,"%*s",Pos," ");
+	fprintf(stderr,"^ ");
+	vfprintf(stderr,Fmt,VA);
+	fprintf(stderr,"\n");
+	va_end(VA);
+	exit(1);
+}
+
+static void errorAt(char *Loc, char *Fmt, ...)
+{
+	va_list VA;
+	va_start(VA,Fmt);
+	verrorAt(Loc,Fmt,VA);
+}
+
+static void errorTok(Token* Tok,char *Fmt, ...) {
+	va_list VA;
+	va_start(VA,Fmt);
+	verrorAt(Tok->Loc,Fmt,VA);
+}
+
+
 static bool equal(Token* Tok,char *Str) {
 	return memcmp(Tok->Loc,Str,Tok->Len) == 0 && Str[Tok->Len] == '\0';
 }
 
 static Token *skip(Token *Tok, char *Str) {
 	if(!equal(Tok,Str))
-		error("expect '%s'",Str);
+		errorTok(Tok,"expect '%s'",Str);
 	return Tok->Next;
 }
 
 static int getNumber(Token *Tok)
 {
 	if(Tok->Kind !=TK_NUM){
-		error("expect a number");
+		errorTok(Tok,"expect a number");
 	}
 	return Tok->Val;
 }
@@ -55,7 +84,8 @@ static Token *newToken(TokenKind Kind, char *Start,char *End) {
 	return Tok;
 }
 
-static Token *tokenize(char *p) {
+static Token *tokenize() {
+	char *p = CurrentInput;
 	Token Head = {};
 	Token *Cur = &Head;
 	while(*p) {
@@ -79,7 +109,7 @@ static Token *tokenize(char *p) {
 			++p;
 			continue;
 		}
-		error("invalid token: %c",*p);	
+		errorAt(p,"invalid token");	
 	}
 	Cur->Next = newToken(TK_EOF,p,p);
 	return Head.Next;
@@ -92,9 +122,9 @@ int main(int Argc, char **Argv) {
     	error("%s: invalid number of arguments",Argv[0]);
     	return 1;
     }
-    char *p = Argv[1];
+    CurrentInput = Argv[1];
     
-    Token *Tok = tokenize(Argv[1]);
+    Token *Tok = tokenize();
     
     printf("  .globl main\n");
     printf("main:\n");
